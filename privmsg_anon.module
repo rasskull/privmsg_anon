@@ -1,0 +1,34 @@
+<?php 
+/**
+ * Display help and module information
+ * @param path which path of the site we're displaying help
+ * @param arg array that holds the current path as would be returned from arg() function
+ * @return help text for the path
+ */
+function privmsg_anon_help($path, $arg) {
+  $output = '';  //declare your output variable
+  switch ($path) {
+    case "admin/help#privmsg_anon":
+      $output = '<p>'.  t("Allows anonymous users to send private messages to registered users via email.") .'</p>';
+      break;
+  }
+  return $output;
+} // function privmsg_anon_help
+
+
+
+
+/**
+ * Implementation of hook_block().
+ * @param string $op one of "list", "view", "save" and "configure"
+ * @param integer $delta code to identify the block
+ * @param array $edit only for "save" operation
+*/
+function privmsg_anon_block($op = 'list', $delta = 0, $edit = array()) {  
+  if ($op == "list") {
+    // Generate listing of blocks from this module, for the admin/block page
+    $block = array();
+    $block[0]["info"] = t('Anonymous Private Message');
+    return $block;
+  } 
+} // function privmsg_anon_block

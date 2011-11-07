@@ -1,0 +1,52 @@
+<?php
+function privmsg_anon_schema() {
+  $schema['pm_privmsg_anon'] = array(
+    'description' => t('The table which holds anonymous data for private message integration.'),
+    'fields' => array(
+      'pm_anon_id' => array(
+        'description' => t('The primary identifier for anonymous data tied to a private message.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'mid' => array(
+        'description' => t('The message ID from private messages.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+      'thread_id' => array(
+        'description' => t('The thread ID from private messages.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+      'anon_email' => array(
+        'description' => t('The email address of the anonymous user.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''),
+      'title' => array(
+        'description' => t('The title of this node, always treated a non-markup plain text.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''),
+      ),
+    'unique keys' => array(
+      'pm_anon_id'     => array('pm_anon_id')
+      ),
+    'primary key' => array('pm_anon_id'),
+  );
+  return $schema;
+}
+
+function privmsg_anon_install() {
+  // Create privmsg_anon tables.
+  drupal_install_schema('privmsg_anon');
+}
+
+function privmsg_anon_uninstall() {
+  // Drop privmsg_anon tables.
+  drupal_uninstall_schema('privmsg_anon');
+}

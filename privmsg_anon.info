@@ -1,0 +1,5 @@
+name = Anonymous Private Message Integration
+description = Allows anonymous users to send a private message to a registered user via an email form.
+core = 6.x
+
+dependencies[] = privatemsg
