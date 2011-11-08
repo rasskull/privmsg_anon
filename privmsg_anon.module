@@ -15,8 +15,37 @@ function privmsg_anon_help($path, $arg) {
   return $output;
 } // function privmsg_anon_help
 
-
-
+/**
+ * Implementation of hook_menu().
+ */
+function privmsg_anon_menu() {
+  $items = array();
+  // admin page for settings
+  $items["admin/settings/privmsg_anon"] = array(
+    'title' => t('Private Message Anon Admin'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('privmsg_anon_admin'), 
+    'description' => t('Configure Private Message Anon settings'),
+    'access arguments' => array('administer privmsg_anon module'),
+    'file' => 'privmsg_anon.admin.inc',
+  );
+  $items['privmsg_anon/respond/%/%'] = array(
+	  'title' => t('Create Message'),	
+	  'access callback' => TRUE,						 
+	  'page callback' => 'privmsg_anon_respond', 
+	  'type' => MENU_CALLBACK,
+    'page arguments' => array(2,3),
+	  'file' => 'privmsg_anon.pages.inc',
+  );
+  $items['privmsg_anon/sent'] = array(
+    'title' => t('Your message has been sent'), 
+    'access callback' => TRUE,             
+    'page callback' => 'privmsg_anon_message_sent', 
+    'type' => MENU_CALLBACK,
+    'file' => 'privmsg_anon.pages.inc',
+  );
+  return $items;
+}
 
 /**
  * Implementation of hook_block().
@@ -24,11 +53,189 @@ function privmsg_anon_help($path, $arg) {
  * @param integer $delta code to identify the block
  * @param array $edit only for "save" operation
 */
+/*
 function privmsg_anon_block($op = 'list', $delta = 0, $edit = array()) {  
   if ($op == "list") {
     // Generate listing of blocks from this module, for the admin/block page
     $block = array();
-    $block[0]["info"] = t('Anonymous Private Message');
+    $block[0]["info"] = t('Anonymous Private Message Form');
     return $block;
-  } 
+  } else if ($op == 'view') {
+  	switch ($delta) {
+      case 0:
+        // define function to render the block.
+        $block = array(
+          'subject' => t('Contact Author'), 
+          'content' => drupal_get_form('privmsg_anon_contact'),
+        );
+      break;
+    }
+    return $block;
+  }
 } // function privmsg_anon_block
+*/
+/**
+ * Contact Form
+*/
+function privmsg_anon_contact($form_state, $vars) {
+
+  $node = node_load($vars['nid']);
+  $anon_row = db_fetch_array(db_query("SELECT anon_email, anon_name, nid FROM {pm_privmsg_anon} WHERE thread_id = '%d'", $vars['thread_id']));
+  
+  $form['node_title'] = array('#value' => 'This conversation is regarding: "' . $node->title . '"');
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#size' => 30,
+    '#maxlength' => 128,
+    '#description' => null,
+    '#attributes' => null,
+    '#required' => true,
+    '#default_value' => $anon_row['anon_name'],
+  );
+  $form['email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Email'),
+    '#size' => 30,
+    '#maxlength' => 255,
+    '#description' => null,
+    '#attributes' => null,
+    '#default_value' => $anon_row['anon_email'],
+    '#required' => true,
+  );
+  $form['comment'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Comment'),
+    '#cols' => 10,
+    '#rows' => 4,
+    '#required' => true,
+  );
+  $form['thread_id'] = array(
+	  '#type' => 'hidden', 
+	  '#value' => $vars['thread_id'],
+	);
+  $form['nid'] = array(
+    '#type' => 'hidden', 
+    '#value' => $vars['nid'],
+    );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send'),
+  );
+  return $form;
+}
+
+/**
+ * Validation function for privmsg_anon_contact
+*/
+function privmsg_anon_contact_validate($form, &$form_state) {
+  
+  if(!$form['nid']) {
+    form_set_error('', t('Node ID missing.'));
+  }
+}
+
+/**
+ * Submit handler function for privmsg_anon_contact
+*/
+function privmsg_anon_contact_submit($form, &$form_state) {
+  // load node to get author and title
+  $node = node_load($form['nid']['#value']);
+  // set up fake user object
+  $user->uid = 0;
+  $user->email = trim($form['email']['#value']);
+  $user->name = trim($form['name']['#value']);
+  $user->node_message = $node->nid;
+  // initialize message array
+  $message = array();
+  $message['subject'] = 'Message from contact form on ' . $node->title . ' by ' . $user->name;
+  $message['author'] = $user;
+  $message['body'] = $user->name . ': ' . trim($form['comment']['#value']);
+  $message['format'] = 1;
+  $message['timestamp'] = time();
+  $message['thread_id'] = $form['thread_id']['#value'];
+  // set up recipient object
+  $recipient->type = 'user';
+  $recipient->recipient = $node->uid;
+  // create recipients array
+  $message['recipients'] = array($recipient);
+
+  // check to make sure email matches up to thread_id in pm_privmsg_anon
+  // if not then clear thread ID and start a new thread
+  
+  if(!$message['thread_id']) {
+    // get new thread ID
+    $highest_thread = db_fetch_array(db_query("SELECT thread_id FROM {pm_index} ORDER BY thread_id DESC"));
+    $message['thread_id'] = intval($highest_thread['thread_id'])+1;
+  }  
+
+  // send directly to private message function to send message
+  $sent = _privatemsg_send($message);
+  if(!$sent) {
+    drupal_set_error(null,'Your message could not be sent.');
+  } else {
+    //drupal_set_message('Your message successfully been sent.');
+    drupal_goto('privmsg_anon/sent');
+  }
+}
+
+/*
+ * Implementation of hook_privatemsg_message_insert()
+ */
+function privmsg_anon_privatemsg_message_insert($message) {
+
+  // if anonymous user then check to see if there is a row in pm_privmsg_anon, if not then add
+  if($message['author']->uid==0) {
+    $match = db_fetch_array(db_query("SELECT pm_anon_id FROM {pm_privmsg_anon} WHERE thread_id = %d AND anon_email = '%s'", $message['thread_id'], $message['author']->email));
+  
+    // if there is not a match of email and thread_id, add it to the table
+    if(!$match['pm_anon_id']) {
+      $message_sql = "INSERT INTO { pm_privmsg_anon} (nid, thread_id, anon_email, anon_name) VALUES (%d, %d, '%s', '%s')";
+      if (!db_query($message_sql, $message['author']->node_message, $message['thread_id'], $message['author']->email, $message['author']->name)) {
+        return FALSE;
+      }
+    }     
+  }
+  
+  // if logged in user, check to see if thread_id is in pm_privmsg_anon then send email if so
+  if($message['author']->uid>0) {
+    $match = db_fetch_array(db_query("SELECT anon_email, nid FROM {pm_privmsg_anon} WHERE thread_id = '%d'", $message['thread_id']));
+    if($match['anon_email']) {
+      
+      // load node object
+      $node = node_load($match['nid']);
+
+      // send email to person
+      $from = variable_get('site_mail', '');
+      $subject = 'Re: Your message regarding "'.$node->title.'"';
+      $body = 'Below is the response to your message:
+
+      ';
+      $body .= '"' . $message['body'] . '"
+
+      ';
+      $body .= 'You can respond to this message at http://' .$_SERVER['HTTP_HOST'] . '/privmsg_anon/respond/' . $match['nid'] . '/' . $message['thread_id'];
+      
+      // send to helper function to shoot off email
+      _privmsg_anon_send_email($match['anon_email'],$from,$subject,$body);
+    }
+  }
+}
+
+/*
+ * Helper function to send email
+ */
+function _privmsg_anon_send_email($email, $from, $subject, $body) {
+  
+   $message = array(
+  'to' => $email,
+  'subject' => $subject,
+  'body' => $body,
+  'headers' => array('From' => $from),
+  );
+
+  drupal_mail_send($message);
+}
+
+

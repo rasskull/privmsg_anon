@@ -8,8 +8,8 @@ function privmsg_anon_schema() {
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE),
-      'mid' => array(
-        'description' => t('The message ID from private messages.'),
+      'nid' => array(
+        'description' => t('The node ID of the parent thread.'),
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -26,8 +26,8 @@ function privmsg_anon_schema() {
         'length' => 255,
         'not null' => TRUE,
         'default' => ''),
-      'title' => array(
-        'description' => t('The title of this node, always treated a non-markup plain text.'),
+      'anon_name' => array(
+        'description' => t('The name of the anonymous user.'),
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
